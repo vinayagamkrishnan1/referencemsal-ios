@@ -1,0 +1,90 @@
+# Xcode
+# Build, test, and archive an Xcode workspace on macOS.
+# Add steps that install certificates, test, sign, and distribute an app, save build artifacts, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/xcode
+
+trigger:
+- main
+
+pool:
+  vmImage: 'macos-latest'
+
+variables:
+  - group: 'Mobile'
+
+steps:
+
+- task: CmdLine@2
+  displayName: 'Change Permission'
+  inputs:
+    script: |
+      chmod -R +x $(System.DefaultWorkingDirectory)
+
+- task: CocoaPods@0
+  displayName: 'Installing pod dependices'
+  inputs:
+    workingDirectory: ''
+    forceRepoUpdate: true
+    projectDirectory: ''
+
+- task: InstallAppleCertificate@2
+  displayName: 'Install an Apple certificate'
+  inputs:
+    certSecureFile: 'Certificates.p12'
+    certPwd: '$(AppleCertificatePassword)'
+    keychain: 'temp'
+    deleteCert: true
+
+- task: InstallAppleProvisioningProfile@1
+  displayName: 'Install an Apple provisioning profile'
+  inputs:
+    provProfileSecureFile: ReferenceMSAL.mobileprovision
+    removeProfile: false
+
+- task: Xcode@5
+  displayName: 'Build the app using Xcode'
+  inputs:
+    actions: 'clean build'
+    sdk: ''
+    scheme: 'referencemsal'
+    configuration: 'Release'
+    xcWorkspacePath: 'referencemsal.xcworkspace'
+    xcodeVersion: 'default'
+    useXcpretty: true
+    # packageApp: false
+    # exportPath: 'output'
+    # signingOption: 'default'
+    # signingIdentity: '$(APPLE_CERTIFICATE_SIGNING_IDENTITY)'
+    # provisioningProfileUuid: '$(APPLE_PROV_PROFILE_UUID)'
+    packageApp: true
+    exportPath: 'output'
+    signingOption: 'manual'
+    signingIdentity: '$(APPLE_CERTIFICATE_SIGNING_IDENTITY)'
+    provisioningProfileUuid: '$(APPLE_PROV_PROFILE_UUID)'
+
+- task: CopyFiles@2
+  displayName: "Copy ipa file"
+  inputs:
+    Contents: '**/*.ipa'
+    TargetFolder: '$(build.artifactStagingDirectory)'
+    OverWrite: true
+  
+- task: PublishBuildArtifacts@1
+  displayName: "Copy ipa file to drop and Location Container"
+  inputs:
+    PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+    ArtifactName: 'drop'
+    publishLocation: 'Container'
+
+# - task: AppCenterDistribute@3
+#   displayName: 'Distribute IPA to App Center'
+#   inputs:
+#     # serverEndpoint: 'ReferenceMSAL-SC'
+#     # appSlug: 'EYMobileAppService/referencemsal-android-cicd'
+#     serverEndpoint: 'MSP-Account-SC-referencemsal-iOS'
+#     appSlug: 'A1247671-MSP01-ey.net/referencemsal-ios-cicd'
+#     appFile: 'output/referencemsal.ipa'
+#     symbolsIncludeParentDirectory: false
+#     releaseNotesInput: 'First distribution through Appcenter'
+#     isSilent: false
+
